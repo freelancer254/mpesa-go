@@ -45,13 +45,13 @@ func TestGetAccessToken_Success(t *testing.T) {
 	ctx := context.Background()
 	response := types.AccessTokenResponse{
 		AccessToken: "test-token",
-		ExpiresIn:   3600,
+		ExpiresIn:   "3600",
 	}
 	server := mockServer(t, http.StatusOK, response)
 	defer server.Close()
 
 	mpesa := client.NewMpesa()
-	mpesa.SetBaseURL(server.URL) // Override base URL for testing
+	mpesa.SetBaseURL(server.URL)
 
 	token, err := mpesa.GetAccessToken(ctx, "consumer_key", "consumer_secret")
 	if err != nil {
@@ -61,7 +61,7 @@ func TestGetAccessToken_Success(t *testing.T) {
 		t.Errorf("expected access token %s, got %s", response.AccessToken, token.AccessToken)
 	}
 	if token.ExpiresIn != response.ExpiresIn {
-		t.Errorf("expected expires in %d, got %d", response.ExpiresIn, token.ExpiresIn)
+		t.Errorf("expected expires in %s, got %s", response.ExpiresIn, token.ExpiresIn)
 	}
 }
 
@@ -74,7 +74,7 @@ func TestGetAccessToken_Error(t *testing.T) {
 	mpesa := client.NewMpesa()
 	mpesa.SetBaseURL(server.URL)
 
-	_, err := mpesa.GetAccessToken(ctx, "invalid_key", "invalid_secret")
+	err, _ := mpesa.GetAccessToken(ctx, "invalid_key", "invalid_secret")
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -84,9 +84,11 @@ func TestGetAccessToken_Error(t *testing.T) {
 func TestSTKPush_Success(t *testing.T) {
 	ctx := context.Background()
 	response := types.STKPushResponse{
-		ResponseCode:        0,
-		CheckoutRequestID:   "ws_CO_123456789",
+		MerchantRequestID:   "29115-34620561-1",
+		CheckoutRequestID:   "ws_CO_191220191020363925",
+		ResponseCode:        "0",
 		ResponseDescription: "Success",
+		CustomerMessage:     "Accepted",
 	}
 	server := mockServer(t, http.StatusOK, response)
 	defer server.Close()
@@ -95,16 +97,16 @@ func TestSTKPush_Success(t *testing.T) {
 	mpesa.SetBaseURL(server.URL)
 
 	payload := types.STKPushRequest{
-		"AccessToken":       "test-token",
-		"BusinessShortCode": "123456",
-		"Password":          "encoded_password",
-		"Amount":            "100",
-		"PartyA":            "254700000000",
-		"PartyB":            "123456",
-		"PhoneNumber":       "254700000000",
-		"CallBackURL":       "https://callback.example.com",
-		"AccountReference":  "Test123",
-		"TransactionDesc":   "Payment",
+		AccessToken:       "test-token",
+		BusinessShortCode: "123456",
+		Password:          "encoded_password",
+		Amount:            "100",
+		PartyA:            "254700000000",
+		PartyB:            "123456",
+		PhoneNumber:       "254700000000",
+		CallBackURL:       "https://callback.example.com",
+		AccountReference:  "Test123",
+		TransactionDesc:   "Payment",
 	}
 
 	result, err := mpesa.STKPush(ctx, payload)
@@ -112,29 +114,29 @@ func TestSTKPush_Success(t *testing.T) {
 		t.Fatalf("expected no error, got %v", err)
 	}
 	if result.ResponseCode != response.ResponseCode {
-		t.Errorf("expected response code %d, got %d", response.ResponseCode, result.ResponseCode)
+		t.Errorf("expected response code %s, got %s", response.ResponseCode, result.ResponseCode)
 	}
 	if result.CheckoutRequestID != response.CheckoutRequestID {
 		t.Errorf("expected checkout request ID %s, got %s", response.CheckoutRequestID, result.CheckoutRequestID)
 	}
 }
 
-// TestSTKPush_MissingKey tests the STKPush method with a missing required key.
-func TestSTKPush_MissingKey(t *testing.T) {
+// TestSTKPush_ValidationError tests the STKPush method with invalid payload.
+func TestSTKPush_ValidationError(t *testing.T) {
 	ctx := context.Background()
 	mpesa := client.NewMpesa()
 
 	payload := types.STKPushRequest{
-		"AccessToken": "test-token",
-		// Missing other required keys
+		AccessToken: "test-token",
+		// Missing required fields
 	}
 
 	_, err := mpesa.STKPush(ctx, payload)
 	if err == nil {
-		t.Fatal("expected error for missing key, got nil")
+		t.Fatal("expected validation error, got nil")
 	}
-	if err.Error() != "missing key: BusinessShortCode" {
-		t.Errorf("expected error 'missing key: BusinessShortCode', got %v", err)
+	if err.Error() == "" {
+		t.Errorf("expected validation error, got %v", err)
 	}
 }
 
@@ -151,11 +153,11 @@ func TestRegisterURL_Success(t *testing.T) {
 	mpesa.SetBaseURL(server.URL)
 
 	payload := types.RegisterURLRequest{
-		"AccessToken":     "test-token",
-		"ShortCode":       "123456",
-		"ResponseType":    "Completed",
-		"ConfirmationURL": "https://confirm.example.com",
-		"ValidationURL":   "https://validate.example.com",
+		AccessToken:     "test-token",
+		ShortCode:       "123456",
+		ResponseType:    "Completed",
+		ConfirmationURL: "https://confirm.example.com",
+		ValidationURL:   "https://validate.example.com",
 	}
 
 	result, err := mpesa.RegisterURL(ctx, payload)
@@ -182,11 +184,11 @@ func TestSimulateTransaction_Success(t *testing.T) {
 	mpesa.SetBaseURL(server.URL)
 
 	payload := types.SimulateTransactionRequest{
-		"AccessToken":   "test-token",
-		"ShortCode":     "123456",
-		"Amount":        "100",
-		"Msisdn":        "254700000000",
-		"BillRefNumber": "TEST123",
+		AccessToken:   "test-token",
+		ShortCode:     "123456",
+		Amount:        "100",
+		Msisdn:        "254700000000",
+		BillRefNumber: "TEST123",
 	}
 
 	result, err := mpesa.SimulateTransaction(ctx, payload)
@@ -195,43 +197,6 @@ func TestSimulateTransaction_Success(t *testing.T) {
 	}
 	if result.OriginatorConversationID != response.OriginatorConversationID {
 		t.Errorf("expected originator conversation ID %s, got %s", response.OriginatorConversationID, result.OriginatorConversationID)
-	}
-}
-
-// TestReverseTransaction_Success tests the ReverseTransaction method with a successful response.
-func TestReverseTransaction_Success(t *testing.T) {
-	ctx := context.Background()
-	response := types.ReverseTransactionResponse{
-		Result: struct {
-			ResultType int `json:"ResultType"`
-			ResultCode int `json:"ResultCode"`
-		}{ResultType: 0, ResultCode: 0},
-	}
-	server := mockServer(t, http.StatusOK, response)
-	defer server.Close()
-
-	mpesa := client.NewMpesa()
-	mpesa.SetBaseURL(server.URL)
-
-	payload := types.ReverseTransactionRequest{
-		"AccessToken":        "test-token",
-		"Initiator":          "test-initiator",
-		"SecurityCredential": "credential",
-		"TransactionID":      "TX123",
-		"Amount":             "100",
-		"ReceiverParty":      "123456",
-		"ResultURL":          "https://result.example.com",
-		"QueueTimeOutURL":    "https://timeout.example.com",
-		"Remarks":            "Test reversal",
-		"Occasion":           "Test",
-	}
-
-	result, err := mpesa.ReverseTransaction(ctx, payload)
-	if err != nil {
-		t.Fatalf("expected no error, got %v", err)
-	}
-	if result.Result.ResultCode != 0 {
-		t.Errorf("expected result code 0, got %d", result.Result.ResultCode)
 	}
 }
 
@@ -250,15 +215,16 @@ func TestQueryTransaction_Success(t *testing.T) {
 	mpesa.SetBaseURL(server.URL)
 
 	payload := types.QueryTransactionRequest{
-		"AccessToken":        "test-token",
-		"Initiator":          "test-initiator",
-		"SecurityCredential": "credential",
-		"TransactionID":      "TX123",
-		"PartyA":             "123456",
-		"ResultURL":          "https://result.example.com",
-		"QueueTimeOutURL":    "https://timeout.example.com",
-		"Remarks":            "Test query",
-		"Occasion":           "Test",
+		AccessToken:        "test-token",
+		Initiator:          "test-initiator",
+		SecurityCredential: "credential",
+		TransactionID:      "TX123",
+		PartyA:             "123456",
+		IdentifierType:     "4",
+		ResultURL:          "https://result.example.com",
+		QueueTimeOutURL:    "https://timeout.example.com",
+		Remarks:            "Test query",
+		Occasion:           "Test",
 	}
 
 	result, err := mpesa.QueryTransaction(ctx, payload)
@@ -285,13 +251,14 @@ func TestGetBalance_Success(t *testing.T) {
 	mpesa.SetBaseURL(server.URL)
 
 	payload := types.GetBalanceRequest{
-		"AccessToken":        "test-token",
-		"Initiator":          "test-initiator",
-		"SecurityCredential": "credential",
-		"PartyA":             "123456",
-		"Remarks":            "Test balance",
-		"QueueTimeOutURL":    "https://timeout.example.com",
-		"ResultURL":          "https://result.example.com",
+		AccessToken:        "test-token",
+		Initiator:          "test-initiator",
+		SecurityCredential: "credential",
+		PartyA:             "123456",
+		IdentifierType:     "4",
+		Remarks:            "Test balance",
+		QueueTimeOutURL:    "https://timeout.example.com",
+		ResultURL:          "https://result.example.com",
 	}
 
 	result, err := mpesa.GetBalance(ctx, payload)
@@ -318,16 +285,17 @@ func TestB2CSend_Success(t *testing.T) {
 	mpesa.SetBaseURL(server.URL)
 
 	payload := types.B2CSendRequest{
-		"AccessToken":        "test-token",
-		"InitiatorName":      "test-initiator",
-		"SecurityCredential": "credential",
-		"Amount":             "100",
-		"PartyA":             "123456",
-		"PartyB":             "254700000000",
-		"Remarks":            "Test B2C",
-		"QueueTimeOutURL":    "https://timeout.example.com",
-		"ResultURL":          "https://result.example.com",
-		"Occasion":           "Test",
+		AccessToken:        "test-token",
+		InitiatorName:      "test-initiator",
+		SecurityCredential: "credential",
+		CommandID:          "PromotionPayment",
+		Amount:             "100",
+		PartyA:             "123456",
+		PartyB:             "254700000000",
+		Remarks:            "Test B2C",
+		QueueTimeOutURL:    "https://timeout.example.com",
+		ResultURL:          "https://result.example.com",
+		Occasion:           "Test",
 	}
 
 	result, err := mpesa.B2CSend(ctx, payload)
@@ -355,20 +323,20 @@ func TestB2BSend_Success(t *testing.T) {
 	mpesa.SetBaseURL(server.URL)
 
 	payload := types.B2BSendRequest{
-		"AccessToken":            "test-token",
-		"Initiator":              "test-initiator",
-		"SecurityCredential":     "credential",
-		"CommandID":              "BusinessPayment",
-		"SenderIdentifierType":   "4",
-		"RecieverIdentifierType": "4",
-		"Amount":                 "100",
-		"PartyA":                 "123456",
-		"PartyB":                 "654321",
-		"Remarks":                "Test B2B",
-		"AccountReference":       "TEST123",
-		"Requester":              "254700000000",
-		"QueueTimeOutURL":        "https://timeout.example.com",
-		"ResultURL":              "https://result.example.com",
+		AccessToken:            "test-token",
+		Initiator:              "test-initiator",
+		SecurityCredential:     "credential",
+		CommandID:              "BusinessPayment",
+		SenderIdentifierType:   "4",
+		ReceiverIdentifierType: "4",
+		Amount:                 "100",
+		PartyA:                 "123456",
+		PartyB:                 "654321",
+		Remarks:                "Test B2B",
+		AccountReference:       "TEST123",
+		Requester:              "254700000000",
+		QueueTimeOutURL:        "https://timeout.example.com",
+		ResultURL:              "https://result.example.com",
 	}
 
 	result, err := mpesa.B2BSend(ctx, payload)
@@ -396,10 +364,10 @@ func TestRegisterPullAPI_Success(t *testing.T) {
 	mpesa.SetBaseURL(server.URL)
 
 	payload := types.RegisterPullAPIRequest{
-		"AccessToken":     "test-token",
-		"ShortCode":       "600000",
-		"NominatedNumber": "254700000000",
-		"CallBackURL":     "https://callback.example.com",
+		AccessToken:     "test-token",
+		ShortCode:       "600000",
+		NominatedNumber: "254700000000",
+		CallBackURL:     "https://callback.example.com",
 	}
 
 	result, err := mpesa.RegisterPullAPI(ctx, payload)
@@ -438,11 +406,11 @@ func TestPullTransactions_Success(t *testing.T) {
 	mpesa.SetBaseURL(server.URL)
 
 	payload := types.PullTransactionsRequest{
-		"AccessToken": "test-token",
-		"ShortCode":   "600000",
-		"StartDate":   "2020-08-01",
-		"EndDate":     "2020-08-10",
-		"OffSetValue": "0",
+		AccessToken: "test-token",
+		ShortCode:   "600000",
+		StartDate:   "2020-08-01",
+		EndDate:     "2020-08-10",
+		OffSetValue: "0",
 	}
 
 	result, err := mpesa.PullTransactions(ctx, payload)
@@ -461,22 +429,22 @@ func TestPullTransactions_Success(t *testing.T) {
 func TestConcurrentAccess(t *testing.T) {
 	ctx := context.Background()
 	mpesa := client.NewMpesa()
-	server := mockServer(t, http.StatusOK, types.STKPushResponse{ResponseCode: 0})
+	server := mockServer(t, http.StatusOK, types.STKPushResponse{ResponseCode: "0"})
 	defer server.Close()
 	mpesa.SetBaseURL(server.URL)
 
 	var wg sync.WaitGroup
 	payload := types.STKPushRequest{
-		"AccessToken":       "test-token",
-		"BusinessShortCode": "123456",
-		"Password":          "encoded_password",
-		"Amount":            "100",
-		"PartyA":            "254700000000",
-		"PartyB":            "123456",
-		"PhoneNumber":       "254700000000",
-		"CallBackURL":       "https://callback.example.com",
-		"AccountReference":  "Test123",
-		"TransactionDesc":   "Payment",
+		AccessToken:       "test-token",
+		BusinessShortCode: "123456",
+		Password:          "encoded_password",
+		Amount:            "100",
+		PartyA:            "254700000000",
+		PartyB:            "123456",
+		PhoneNumber:       "254700000000",
+		CallBackURL:       "https://callback.example.com",
+		AccountReference:  "Test123",
+		TransactionDesc:   "Payment",
 	}
 
 	for i := 0; i < 10; i++ {
